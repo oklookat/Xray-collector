@@ -22,3 +22,8 @@ go.work
 
 # .env
 .env
+
+test/
+build/
+geoip.json
+geosite.json

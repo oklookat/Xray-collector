@@ -1,0 +1,8 @@
+geolite2/
+db-ip/
+output/
+tmp/
+geoip
+*.mmdb
+*.dat
+*.sha256sum

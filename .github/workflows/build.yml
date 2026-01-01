@@ -1,0 +1,65 @@
+name: Build & Release Go Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  APP_NAME: "xray-collector"
+  LICENSE_FILE: "LICENSE"
+  GO_VERSION: "1.25.2"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          BIN_NAME=${APP_NAME}
+
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BIN_NAME=${APP_NAME}.exe
+          fi
+
+          echo "Building $BIN_NAME for ${{ matrix.goos }}/${{ matrix.goarch }}..."
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -o dist/$BIN_NAME
+
+      - name: Prepare ZIP package
+        run: |
+          PKG_NAME=${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}
+          mkdir $PKG_NAME
+          cp dist/* $PKG_NAME/
+          cp $LICENSE_FILE $PKG_NAME/
+          zip -r $PKG_NAME.zip $PKG_NAME
+
+      - name: Generate SHA256 checksum
+        run: |
+          ZIP_FILE=${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          CHECKSUM_FILE=${ZIP_FILE}.sha256sum
+          sha256sum $ZIP_FILE > $CHECKSUM_FILE
+
+      - name: Upload ZIP and checksum to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+            ${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.zip.sha256sum
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
