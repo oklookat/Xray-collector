@@ -10,6 +10,7 @@ env:
   APP_NAME: "xray-collector"
   LICENSE_FILE: "LICENSE"
   README_FILE: "README.md"
+  CHANGELOG_FILE: "CHANGELOG.md"
   GO_VERSION: "1.25.2"
 
 jobs:
@@ -52,19 +53,16 @@ jobs:
 
       - name: Build binary
         run: |
-          # Set binary name with extension
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
             BIN_NAME="${APP_NAME}.exe"
           else
             BIN_NAME="${APP_NAME}"
           fi
 
-          # Create output directory
           mkdir -p "dist/${{ matrix.goos }}-${{ matrix.goarch }}"
 
           echo "Building $BIN_NAME for ${{ matrix.goos }}/${{ matrix.goarch }}..."
 
-          # Build with version information
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
           go build \
             -ldflags="-X main.Version=${{ steps.get_version.outputs.VERSION }} \
@@ -73,7 +71,6 @@ jobs:
             -o "dist/${{ matrix.goos }}-${{ matrix.goarch }}/$BIN_NAME" \
             .
 
-          # Copy supporting files
           cp "${{ env.LICENSE_FILE }}" "dist/${{ matrix.goos }}-${{ matrix.goarch }}/"
           [ -f "${{ env.README_FILE }}" ] && cp "${{ env.README_FILE }}" "dist/${{ matrix.goos }}-${{ matrix.goarch }}/"
 
@@ -83,12 +80,10 @@ jobs:
           PKG_NAME="${APP_NAME}_${{ steps.get_version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.goarch }}"
 
           if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            # Create zip for Windows
             cd "$PKG_DIR"
             zip -r "../../${PKG_NAME}.zip" .
             cd ../..
           else
-            # Create tar.gz for Unix-like systems
             tar -czf "${PKG_NAME}.tar.gz" -C "$PKG_DIR" .
           fi
 
@@ -96,12 +91,10 @@ jobs:
         run: |
           VERSION="${{ steps.get_version.outputs.VERSION }}"
 
-          # Find and checksum all archives
           for archive in ${APP_NAME}_${VERSION}_*.{zip,tar.gz}; do
             if [ -f "$archive" ]; then
               echo "Generating checksum for $archive"
               shasum -a 256 "$archive" > "${archive}.sha256"
-              echo "$(cat ${archive}.sha256)"  # Display for debugging
             fi
           done
 
@@ -124,6 +117,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check for changelog file
+        id: check_changelog
+        run: |
+          if [ -f "${{ env.CHANGELOG_FILE }}" ]; then
+            echo "Changelog file found: ${{ env.CHANGELOG_FILE }}"
+            echo "has_changelog=true" >> $GITHUB_OUTPUT
+          else
+            echo "Changelog file not found: ${{ env.CHANGELOG_FILE }}"
+            echo "has_changelog=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download all artifacts
         uses: actions/download-artifact@v7
         with:
@@ -131,62 +135,19 @@ jobs:
           pattern: "*"
           merge-multiple: true
 
-      - name: List downloaded artifacts
-        run: |
-          echo "Artifacts structure:"
-          find artifacts -type f -name "*" | sort
-          echo ""
-          echo "Files for release:"
-          ls -la artifacts/* || true
-
-      - name: Verify checksums
-        run: |
-          cd artifacts
-          echo "Verifying checksums..."
-          for sha_file in *.sha256; do
-            if [ -f "$sha_file" ]; then
-              echo "Verifying: $sha_file"
-              archive_file="${sha_file%.sha256}"
-              if [ -f "$archive_file" ]; then
-                shasum -a 256 -c "$sha_file"
-              else
-                echo "Warning: Archive file $archive_file not found for $sha_file"
-              fi
-            fi
-          done
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ env.APP_NAME }} ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             artifacts/${{ env.APP_NAME }}_*.tar.gz
             artifacts/${{ env.APP_NAME }}_*.tar.gz.sha256
             artifacts/${{ env.APP_NAME }}_*.zip
             artifacts/${{ env.APP_NAME }}_*.zip.sha256
-          body: |
-            ## 📦 Release ${{ github.ref_name }}
-
-            ### 🔧 Supported Platforms
-            - **Linux** (amd64, arm64)
-            - **macOS** (amd64, arm64)
-            - **Windows** (amd64)
-
-            ### 📝 Verification
-            Verify downloaded files using SHA256 checksums:
-            ```bash
-            # For Unix/Linux/macOS
-            sha256sum -c *.sha256
-
-            # For Windows PowerShell
-            Get-FileHash -Algorithm SHA256 file.zip
-            ```
-
-            ### ⚙️ Installation
-            Extract the archive for your platform and copy the binary to your PATH.
+          body_path: ${{ env.CHANGELOG_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
