@@ -59,7 +59,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.zip
-            ${APP_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.zip.sha256sum
+            xray-collector_linux_amd64.zip
+            xray-collector_linux_amd64.zip.sha256sum
+            xray-collector_linux_arm64.zip
+            xray-collector_linux_arm64.zip.sha256sum
+            xray-collector_windows_amd64.zip
+            xray-collector_windows_amd64.zip.sha256sum
+            xray-collector_windows_arm64.zip
+            xray-collector_windows_arm64.zip.sha256sum
+            xray-collector_darwin_amd64.zip
+            xray-collector_darwin_amd64.zip.sha256sum
+            xray-collector_darwin_arm64.zip
+            xray-collector_darwin_arm64.zip.sha256sum
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
